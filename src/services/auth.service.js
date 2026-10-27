@@ -32,19 +32,69 @@ const register = async ({ name, email, password, role, adminKey }) => {
   };
 };
 
+// const login = async ({ email, password }) => {
+//    console.log("User found:", Boolean(user));
+//   console.log("Password hash exists:", Boolean(user?.passwordHash));
+
+
+//   const user = await User.findOne({ email });
+//   if (!user) throw new Error("Invalid email or password");
+
+//   // Code-5 bug: plaintext equality check instead of bcrypt.compare
+// const match = await bcrypt.compare(password, user.passwordHash);
+//   console.log("Password matched:", match);
+
+//   if (!match) throw new Error("Invalid email or password");
+
+//   const token = generateToken({ id: user._id, role: user.role });
+
+//   return {
+//     token,
+//     user: { id: user._id, name: user.name, email: user.email, role: user.role },
+//   };
+// };
+
+
+
 const login = async ({ email, password }) => {
+  console.log("Login email:", email);
+  console.log("Password received:", Boolean(password));
+
+  // Find user before accessing the user variable
   const user = await User.findOne({ email });
-  if (!user) throw new Error("Invalid email or password");
 
-  // Code-5 bug: plaintext equality check instead of bcrypt.compare
-  const match = (password === user.passwordHash);
-  if (!match) throw new Error("Invalid email or password");
+  console.log("User found:", Boolean(user));
+  console.log("Password hash exists:", Boolean(user?.passwordHash));
 
-  const token = generateToken({ id: user._id, role: user.role });
+  if (!user) {
+    throw new Error("Invalid email or password");
+  }
+
+  if (!user.passwordHash) {
+    throw new Error("Password is not configured for this account");
+  }
+
+  const match = await bcrypt.compare(password, user.passwordHash);
+
+  console.log("Password matched:", match);
+
+  if (!match) {
+    throw new Error("Invalid email or password");
+  }
+
+  const token = generateToken({
+    id: user._id,
+    role: user.role,
+  });
 
   return {
     token,
-    user: { id: user._id, name: user.name, email: user.email, role: user.role },
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    },
   };
 };
 
