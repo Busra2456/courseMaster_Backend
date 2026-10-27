@@ -22,16 +22,20 @@ const myEnrollments = async (req, res) => {
   }
 };
 
+
 const completeLesson = async (req, res) => {
   try {
     const data = await enrollmentService.completeLesson(
+      req.user.id,
       req.params.enrollId,
       req.body.lessonId
     );
+
     res.json(data);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 };
+
 
 module.exports = { enrollCourse, myEnrollments, completeLesson };
