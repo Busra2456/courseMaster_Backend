@@ -1,4 +1,3 @@
-
 const Enrollment = require("../models/Enrollment");
 const Course = require("../models/Course");
 
@@ -33,9 +32,41 @@ const enrollCourse = async (studentId, courseId, batchId = null) => {
 };
 
 const getMyEnrollments = async (studentId) => {
-  return Enrollment.find({ student: studentId })
+  const enrollments = await Enrollment.find({ student: studentId })
     .populate("course", "title instructorName price category tags syllabus")
-    .sort({ createdAt: -1 });
+    .sort({ createdAt: -1 })
+    .lean();
+
+  return enrollments.map((enrollment) => {
+    const course = enrollment.course;
+
+    const totalLessons = (course?.syllabus || []).reduce(
+      (total, module) => total + (module.lessons?.length || 0),
+      0
+    );
+
+    const completedLessons =
+      enrollment.progress?.completedLessons || [];
+
+    const completedCount = completedLessons.length;
+
+    const percent =
+      totalLessons === 0
+        ? 0
+        : Math.min(
+            100,
+            Math.round((completedCount / totalLessons) * 100)
+          );
+
+    return {
+      ...enrollment,
+      progress: {
+        ...enrollment.progress,
+        completedLessons,
+        percent,
+      },
+    };
+  });
 };
 
 const completeLesson = async (studentId, enrollId, lessonId) => {
@@ -43,7 +74,7 @@ const completeLesson = async (studentId, enrollId, lessonId) => {
     throw new Error("Lesson ID is required");
   }
 
-  // Only allow the owner of this enrollment to update progress
+  // Only allow the enrollment owner to update progress
   const enrollment = await Enrollment.findOne({
     _id: enrollId,
     student: studentId,
@@ -59,9 +90,9 @@ const completeLesson = async (studentId, enrollId, lessonId) => {
     throw new Error("Course not found");
   }
 
-  // Verify that the lesson actually belongs to this course
-  const allLessons = (course.syllabus || []).flatMap((module) =>
-    module.lessons || []
+  // Verify that the lesson belongs to this course
+  const allLessons = (course.syllabus || []).flatMap(
+    (module) => module.lessons || []
   );
 
   const lessonExists = allLessons.some(
@@ -72,6 +103,7 @@ const completeLesson = async (studentId, enrollId, lessonId) => {
     throw new Error("Lesson not found in this course");
   }
 
+  // Initialize progress safely
   if (!enrollment.progress) {
     enrollment.progress = {
       completedLessons: [],
@@ -79,23 +111,31 @@ const completeLesson = async (studentId, enrollId, lessonId) => {
     };
   }
 
-  const completedLessons = enrollment.progress.completedLessons || [];
+  if (!enrollment.progress.completedLessons) {
+    enrollment.progress.completedLessons = [];
+  }
+
+  const completedLessons = enrollment.progress.completedLessons;
 
   const alreadyCompleted = completedLessons.some(
     (id) => String(id) === String(lessonId)
   );
 
   if (!alreadyCompleted) {
-    enrollment.progress.completedLessons.push(lessonId);
+    completedLessons.push(lessonId);
   }
 
+  // Calculate progress percentage
   const totalLessons = allLessons.length;
-  const completedCount = enrollment.progress.completedLessons.length;
+  const completedCount = completedLessons.length;
 
   enrollment.progress.percent =
     totalLessons === 0
       ? 0
-      : Math.min(100, Math.round((completedCount / totalLessons) * 100));
+      : Math.min(
+          100,
+          Math.round((completedCount / totalLessons) * 100)
+        );
 
   await enrollment.save();
 

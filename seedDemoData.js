@@ -10,54 +10,99 @@ const Course = require("./src/models/Course");
 const Enrollment = require("./src/models/Enrollment");
 
 const demoCourses = [
-  {
-    title: "Complete Web Development Masterclass",
-    description:
-      "Learn HTML, CSS, JavaScript, React, Node.js and MongoDB through practical projects.",
-    instructorName: "Jhankar Mahbub",
-    price: 5000,
-    category: "Web Development",
-    tags: ["React", "JavaScript", "Node.js"],
-    batches: [
-      {
-        name: "Batch 1 - 2026",
-        startDate: new Date("2026-11-15"),
-      },
-    ],
-    syllabus: [
-      {
-        title: "Web Development Fundamentals",
-        lessons: [
-          {
-            title: "Introduction to HTML",
-            videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-          },
-        ],
-      },
-    ],
-  },
-  {
-    title: "Python for Data Science",
-    description:
-      "Learn Python programming and essential data science concepts.",
-    instructorName: "Dr. Anisul Islam",
-    price: 4500,
-    category: "Data Science",
-    tags: ["Python", "Data Science", "AI"],
-    batches: [],
-    syllabus: [],
-  },
-  {
-    title: "Flutter Mobile App Development",
-    description:
-      "Learn Flutter and Dart for cross-platform mobile applications.",
-    instructorName: "Sumit Saha",
-    price: 4000,
-    category: "Mobile App",
-    tags: ["Flutter", "Dart", "Mobile"],
-    batches: [],
-    syllabus: [],
-  },
+  
+{
+  title: "Python for Data Science",
+  description:
+    "Learn Python programming and essential data science concepts.",
+  instructorName: "Dr. Anisul Islam",
+  price: 4500,
+  category: "Data Science",
+  tags: ["Python", "Data Science", "AI"],
+  batches: [],
+  syllabus: [
+    {
+      title: "Module 1: Python Fundamentals",
+      lessons: [
+        {
+          title: "Introduction to Python",
+          videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
+          quiz: [
+            {
+              question: "Which keyword defines a function in Python?",
+              options: ["func", "def", "function", "define"],
+              correctIndex: 1,
+            },
+          ],
+        },
+        {
+          title: "Lists, Dictionaries, and Data Structures",
+          videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
+          assignmentPrompt:
+            "Write a Python program using lists and dictionaries.",
+        },
+      ],
+    },
+    {
+      title: "Module 2: Data Analysis",
+      lessons: [
+        {
+          title: "Introduction to NumPy and Pandas",
+          videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
+        },
+      ],
+    },
+  ],
+},
+{
+  title: "Flutter Mobile App Development",
+  description:
+    "Learn Flutter and Dart for cross-platform mobile applications.",
+  instructorName: "Sumit Saha",
+  price: 4000,
+  category: "Mobile App",
+  tags: ["Flutter", "Dart", "Mobile"],
+  batches: [],
+  syllabus: [
+    {
+      title: "Module 1: Flutter Fundamentals",
+      lessons: [
+        {
+          title: "Introduction to Flutter and Dart",
+          videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
+        },
+        {
+          title: "Stateless vs Stateful Widgets",
+          videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
+          quiz: [
+            {
+              question: "Which widget does not maintain mutable state?",
+              options: [
+                "StatefulWidget",
+                "StatelessWidget",
+                "State",
+                "BuildContext",
+              ],
+              correctIndex: 1,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      title: "Module 2: Building Mobile Interfaces",
+      lessons: [
+        {
+          title: "Layouts, Rows, Columns, and Containers",
+          videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
+          assignmentPrompt:
+            "Build a simple responsive Flutter screen using Rows and Columns.",
+        },
+      ],
+    },
+  ],
+},
+
 ];
 
 async function seedDemoData() {
@@ -104,12 +149,23 @@ async function seedDemoData() {
         title: courseData.title,
       });
 
-      if (!course) {
-        course = await Course.create(courseData);
-        console.log("Created course:", course.title);
-      } else {
-        console.log("Course already exists:", course.title);
-      }
+      
+if (!course) {
+  course = await Course.create(courseData);
+  console.log("Created course:", course.title);
+} else {
+  course = await Course.findByIdAndUpdate(
+    course._id,
+    {
+      $set: {
+        syllabus: courseData.syllabus,
+      },
+    },
+    { new: true, runValidators: true }
+  );
+
+  console.log("Updated course syllabus:", course.title);
+}
 
       courses.push(course);
     }

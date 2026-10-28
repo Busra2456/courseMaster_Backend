@@ -31,7 +31,7 @@ const submitQuiz = async (studentId, payload) => {
 
   const total = quiz.length;
   // Code-4 bug: multiplied by 10 instead of 100
-  const percent = Math.round((score / total) * 10);
+  const percent = Math.round((score / total) * 100);
 
   // Check if student already submitted this quiz (optional - allow retakes)
   // If you want to prevent duplicates, uncomment the following:
@@ -80,46 +80,63 @@ const getMyQuizSubmissions = async (studentId, courseId = null) => {
 };
 
 // Get quiz statistics for a course
+
 const getQuizStats = async (studentId, courseId) => {
   const submissions = await QuizSubmission.find({
     student: studentId,
     course: courseId,
-  }).sort({ createdAt: -1 }); // Get most recent first
+  }).sort({ createdAt: -1 });
 
-  if (submissions.length === 0) {
-    return {
-      average: 0,
-      totalQuizzes: 0,
-      submissions: [],
-    };
+  // Keep only the latest submission for each lesson.
+  const latestByLesson = new Map();
+
+  for (const submission of submissions) {
+    const lessonId = String(submission.lessonId);
+
+    if (!latestByLesson.has(lessonId)) {
+      latestByLesson.set(lessonId, submission);
+    }
   }
 
-  // Group by lessonId and get only the most recent submission per lesson
-  const latestSubmissions = {};
-  submissions.forEach((sub) => {
-    const lessonIdStr = String(sub.lessonId);
-    if (!latestSubmissions[lessonIdStr] ||
-      new Date(sub.createdAt) > new Date(latestSubmissions[lessonIdStr].createdAt)) {
-      latestSubmissions[lessonIdStr] = sub;
-    }
+  const latestSubmissions = Array.from(latestByLesson.values());
+
+  const formattedSubmissions = latestSubmissions.map((submission) => {
+    const total = Number(submission.total) || 0;
+    const score = Number(submission.score) || 0;
+
+    // Calculate percentage from score and total,
+    // rather than relying on potentially incorrect stored percent.
+    const percent =
+      total > 0
+        ? Math.round((score / total) * 100)
+        : Number(submission.percent) || 0;
+
+    return {
+      _id: submission._id,
+      lessonId: submission.lessonId,
+      score,
+      total,
+      percent,
+      submittedAt: submission.createdAt,
+    };
   });
 
-  const uniqueSubmissions = Object.values(latestSubmissions);
-  const totalPercent = uniqueSubmissions.reduce((sum, s) => sum + s.percent, 0);
-  const average = Math.round(totalPercent / uniqueSubmissions.length);
+  const average =
+    formattedSubmissions.length > 0
+      ? Math.round(
+          formattedSubmissions.reduce(
+            (sum, submission) => sum + submission.percent,
+            0
+          ) / formattedSubmissions.length
+        )
+      : 0;
 
   return {
     average,
-    totalQuizzes: uniqueSubmissions.length,
-    submissions: uniqueSubmissions.map((s) => ({
-      _id: s._id,
-      lessonId: s.lessonId,
-      score: s.score,
-      total: s.total,
-      percent: s.percent,
-      submittedAt: s.createdAt,
-    })),
+    totalQuizzes: formattedSubmissions.length,
+    submissions: formattedSubmissions,
   };
 };
+
 
 module.exports = { submitQuiz, getMyQuizSubmissions, getQuizStats };
