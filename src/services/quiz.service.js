@@ -2,49 +2,96 @@ const Course = require("../models/Course");
 const Enrollment = require("../models/Enrollment");
 const QuizSubmission = require("../models/QuizSubmission");
 
-const submitQuiz = async (studentId, payload) => {
+// Submit a quiz
+const submitQuiz = async (studentId, payload = {}) => {
   const { courseId, lessonId, answers } = payload;
-  // answers = [selectedIndex, selectedIndex, ...]
 
-  const enrolled = await Enrollment.findOne({ student: studentId, course: courseId });
-  if (!enrolled) throw new Error("You are not enrolled in this course");
+  // Validate required fields
+  if (!courseId || !lessonId) {
+    throw new Error("Course ID and lesson ID are required");
+  }
 
+  if (!Array.isArray(answers) || answers.length === 0) {
+    throw new Error("Answers must be a non-empty array");
+  }
+
+  // Check enrollment
+  const enrolled = await Enrollment.findOne({
+    student: studentId,
+    course: courseId,
+  });
+
+  if (!enrolled) {
+    throw new Error("You are not enrolled in this course");
+  }
+
+  // Find course
   const course = await Course.findById(courseId);
-  if (!course) throw new Error("Course not found");
 
-  // find lesson quiz
-  let quiz = null;
-  for (const mod of course.syllabus) {
-    const lesson = mod.lessons.id(lessonId);
+  if (!course) {
+    throw new Error("Course not found");
+  }
+
+  // Find lesson
+  let lesson = null;
+
+  for (const moduleItem of course.syllabus || []) {
+    lesson = moduleItem.lessons?.id(lessonId);
+
     if (lesson) {
-      quiz = lesson.quiz || [];
       break;
     }
   }
-  if (!quiz) throw new Error("Lesson not found");
-  if (quiz.length === 0) throw new Error("No quiz in this lesson");
 
+  if (!lesson) {
+    throw new Error("Lesson not found");
+  }
+
+  // Get lesson quiz
+  const quiz = lesson.quiz || [];
+
+  if (!quiz.length) {
+    throw new Error("No quiz in this lesson");
+  }
+
+  // Validate answer count
+  if (answers.length !== quiz.length) {
+    throw new Error("Please answer all quiz questions");
+  }
+
+  // Validate answers and calculate score
   let score = 0;
-  quiz.forEach((q, i) => {
-    if (answers[i] === q.correctIndex) score++;
-  });
+
+  for (let i = 0; i < quiz.length; i++) {
+    const question = quiz[i];
+    const selectedIndex = answers[i];
+
+    if (
+      !Array.isArray(question.options) ||
+      !Number.isInteger(question.correctIndex) ||
+      question.correctIndex < 0 ||
+      question.correctIndex >= question.options.length
+    ) {
+      throw new Error(`Invalid quiz configuration for question ${i + 1}`);
+    }
+
+    if (
+      !Number.isInteger(selectedIndex) ||
+      selectedIndex < 0 ||
+      selectedIndex >= question.options.length
+    ) {
+      throw new Error(`Invalid answer for question ${i + 1}`);
+    }
+
+    if (selectedIndex === question.correctIndex) {
+      score++;
+    }
+  }
 
   const total = quiz.length;
-  // Code-4 bug: multiplied by 10 instead of 100
   const percent = Math.round((score / total) * 100);
 
-  // Check if student already submitted this quiz (optional - allow retakes)
-  // If you want to prevent duplicates, uncomment the following:
-  // const existing = await QuizSubmission.findOne({
-  //   student: studentId,
-  //   course: courseId,
-  //   lessonId,
-  // });
-  // if (existing) {
-  //   throw new Error("You have already submitted this quiz");
-  // }
-
-  // Save quiz submission to database
+  // Save submission; retakes are allowed
   const submission = await QuizSubmission.create({
     student: studentId,
     course: courseId,
@@ -55,8 +102,7 @@ const submitQuiz = async (studentId, payload) => {
     percent,
   });
 
-  // Verify it was saved
-  if (!submission || !submission._id) {
+  if (!submission?._id) {
     throw new Error("Failed to save quiz submission");
   }
 
@@ -69,25 +115,35 @@ const submitQuiz = async (studentId, payload) => {
   };
 };
 
-// Get quiz submissions for a student in a specific course
+// Get quiz submissions for a student
 const getMyQuizSubmissions = async (studentId, courseId = null) => {
+  if (!studentId) {
+    throw new Error("Student ID is required");
+  }
+
   const filter = { student: studentId };
-  if (courseId) filter.course = courseId;
+
+  if (courseId) {
+    filter.course = courseId;
+  }
 
   return QuizSubmission.find(filter)
     .populate("course", "title")
     .sort({ createdAt: -1 });
 };
 
-// Get quiz statistics for a course
-
+// Get quiz statistics for a student in a course
 const getQuizStats = async (studentId, courseId) => {
+  if (!studentId || !courseId) {
+    throw new Error("Student ID and course ID are required");
+  }
+
   const submissions = await QuizSubmission.find({
     student: studentId,
     course: courseId,
-  }).sort({ createdAt: -1 });
+  }).sort({ createdAt: -1, _id: -1 });
 
-  // Keep only the latest submission for each lesson.
+  // Keep only the latest submission for each lesson
   const latestByLesson = new Map();
 
   for (const submission of submissions) {
@@ -104,12 +160,10 @@ const getQuizStats = async (studentId, courseId) => {
     const total = Number(submission.total) || 0;
     const score = Number(submission.score) || 0;
 
-    // Calculate percentage from score and total,
-    // rather than relying on potentially incorrect stored percent.
     const percent =
       total > 0
         ? Math.round((score / total) * 100)
-        : Number(submission.percent) || 0;
+        : 0;
 
     return {
       _id: submission._id,
@@ -138,5 +192,8 @@ const getQuizStats = async (studentId, courseId) => {
   };
 };
 
-
-module.exports = { submitQuiz, getMyQuizSubmissions, getQuizStats };
+module.exports = {
+  submitQuiz,
+  getMyQuizSubmissions,
+  getQuizStats,
+};
