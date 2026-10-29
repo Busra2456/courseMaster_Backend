@@ -1,23 +1,54 @@
 const AssignmentSubmission = require("../models/AssignmentSubmission");
 const Enrollment = require("../models/Enrollment");
 
+
 const submitAssignment = async (studentId, payload) => {
   const { courseId, lessonId, answerType, answer } = payload;
 
-  // ensure student enrolled
-  const enrolled = await Enrollment.findOne({ student: studentId, course: courseId });
-  if (!enrolled) throw new Error("You are not enrolled in this course");
+  // Check course exists
+  const course = await Course.findById(courseId);
 
-  const submission = await AssignmentSubmission.create({
+  if (!course) {
+    throw new Error("Course not found");
+  }
+
+  // Check lessonId belongs to this course
+  let lessonExists = false;
+
+  for (const moduleItem of course.syllabus || []) {
+    for (const lesson of moduleItem.lessons || []) {
+      if (String(lesson._id) === String(lessonId)) {
+        lessonExists = true;
+        break;
+      }
+    }
+
+    if (lessonExists) break;
+  }
+
+  if (!lessonExists) {
+    throw new Error("Lesson not found in this course");
+  }
+
+  // Check student enrollment
+  const enrolled = await Enrollment.findOne({
+    student: studentId,
+    course: courseId,
+  });
+
+  if (!enrolled) {
+    throw new Error("You are not enrolled in this course");
+  }
+
+  // Create submission only after validation
+  return AssignmentSubmission.create({
     student: studentId,
     course: courseId,
     lessonId,
     answerType,
     answer,
   });
-
-  return submission;
-};
+}; 
 
 const getMySubmissions = async (studentId, courseId = null) => {
   const filter = { student: studentId };
@@ -72,4 +103,7 @@ const getAssignmentStats = async (studentId, courseId) => {
   };
 };
 
-module.exports = { submitAssignment, getMySubmissions, getAssignmentStats };
+module.exports = { 
+  submitAssignment, 
+  getMySubmissions, 
+  };

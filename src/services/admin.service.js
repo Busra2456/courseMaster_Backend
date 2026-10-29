@@ -190,7 +190,7 @@ const getAnalytics = async () => {
     User.countDocuments({ role: "student" }),
 
     // Confirm the correct instructor role in the User schema.
-    User.countDocuments({ role: "admin" }),
+    Course.distinct("instructorName").then((names) => names.length),
 
     Enrollment.aggregate([
       {
